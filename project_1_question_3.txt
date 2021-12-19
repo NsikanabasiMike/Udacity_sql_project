@@ -1,0 +1,121 @@
+/* query to get film_category_name, film_rental_duration and each quartile*/
+
+WITH data AS (SELECT c.name cat_name,
+f.rental_duration duration,
+NTILE(4) OVER(order by f.rental_duration) quartile
+FROM film f
+JOIN film_category fc
+ON f.film_id = fc.film_id
+JOIN category c
+ON fc.category_id = c.category_id
+WHERE c.name IN ('Animation',
+'Children',
+'Classics',
+'Comedy',
+'Family',
+'Music'))
+
+/*query to get film_category_name, each quartile and their count*/
+
+SELECT cat_name,
+quartile,
+count(*) duration_count 
+FROM data
+GROUP BY 1,2
+ORDER BY 1,2;
+
+
+/* Query to find out how the two stores compare in their count of rental orders during every month for all the years*/
+SELECT s.store_id store_id,
+DATE_PART('month', rental_date) rental_month,
+DATE_PART('year', rental_date) rental_year,
+COUNT(*)
+FROM rental r
+JOIN staff st
+ON r.staff_id = st.staff_id
+JOIN
+store s
+ON st.store_id = s.store_id
+GROUP BY 1,2,3
+ORDER BY 4 desc;
+
+
+/* Query to get full names of top 10 customers, their payment year, and their total payments*/
+	WITH table1 AS
+	(SELECT 
+	 CONCAT(c.first_name,' ',c.last_name) customer_name,
+	 DATE_TRUNC('year', p.payment_date) payment_year,
+	 SUM(p.amount) pay_amount
+	 FROM customer c, payment p
+	 WHERE c.customer_id = p.customer_id
+	 GROUP BY 1,2
+	 ORDER BY 3 DESC
+	 LIMIT 10),
+
+/* Query to get full names of top 10 customers, their payment months, payment count, and their total payments*/
+			table2 AS 
+			(SELECT CONCAT(c.first_name,' ',c.last_name) customer_name,
+			 DATE_TRUNC('month', p.payment_date) payment_month,
+			 COUNT(*) pay_count,
+			 SUM(p.amount) pay_amount
+			 FROM customer c, payment p
+			 WHERE c.customer_id = p.customer_id
+			 GROUP BY 1,2)
+
+/* Query to get full names of top 10 customers, their payment month, total payments, and monthly payment difference*/
+
+SELECT table2.customer_name customer_name,
+table2.payment_month payment_month,
+table2.pay_count pay_count,
+table2.pay_amount pay_amount,
+table2.pay_amount - LAG(table2.pay_amount) OVER(PARTITION BY table2.customer_name) AS lag_difference
+FROM table2
+JOIN table1
+ON table1.customer_name = table2.customer_name;
+
+
+
+/* Query to get full names of top 10 customers, their payment year, and their total payments*/
+	with t1 AS
+	(SELECT 
+	 CONCAT(c.first_name,' ',c.last_name) customer_name,
+	 DATE_TRUNC('year', p.payment_date) payment_year,
+	 SUM(p.amount) pay_amount
+	 FROM customer c
+	 JOIN payment p
+	 ON c.customer_id = p.customer_id
+	 GROUP BY 1,2
+	 ORDER BY 3 desc
+	 LIMIT 10),
+
+
+
+/* Query to get full names of top 10 customers, their payment months, payment count, and their total payments*/
+			table2 AS 
+			(SELECT CONCAT(c.first_name,' ',c.last_name) customer_name,
+			 DATE_TRUNC('month', p.payment_date) payment_month,
+			 COUNT(*) pay_count,
+			 SUM(p.amount) pay_amount
+			 FROM customer c
+			 JOIN payment p
+			 ON c.customer_id = p.customer_id
+			 GROUP BY 1,2),
+
+/* Query to get full names of top 10 customers, their payment month, total payments, and monthly payment difference*/
+
+					table3 AS 
+					(SELECT table2.customer_name customer_name,
+					 table2.payment_month payment_month,
+					 table2.pay_count pay_count,
+					 table2.pay_amount pay_amount,
+					 table2.pay_amount - LAG(table2.pay_amount) OVER(PARTITION BY table2.customer_name) AS lag_difference
+					 FROM table2
+					 JOIN table1
+					 ON table1.customer_name = t2.customer_name)
+
+/* Query to get customer with maximum payment difference*/
+
+SELECT * FROM table3
+WHERE lag_difference IS NOT null
+ORDER BY lag_difference desc
+LIMIT 1;
